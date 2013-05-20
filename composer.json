@@ -1,0 +1,20 @@
+{
+    "name": "peerj/swiftmailer-transport-mappedtransport",
+    "type": "library",
+    "description": "Add Mapped Transport support to Swiftmailer",
+    "keywords": [ "email", "swiftmailer" ],
+    "license": "MIT",
+    "authors": [
+    {
+        "name": "Patrick McAndrew",
+        "email": "patrick@peerj.com"
+    }
+    ],
+    "require": {
+        "php": ">=5.2.0",
+        "swiftmailer/swiftmailer": "4.*"
+    },
+    "autoload": {
+       "psr-0": { "": "classes/" }
+    }
+}
