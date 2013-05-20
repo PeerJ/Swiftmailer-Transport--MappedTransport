@@ -15,6 +15,6 @@
         "swiftmailer/swiftmailer": "4.*"
     },
     "autoload": {
-       "psr-0": { "": "classes/" }
+       "psr-0": { "files": "dependency_maps/mappedtransport_deps.php" }
     }
 }
