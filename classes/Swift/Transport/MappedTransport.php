@@ -1,22 +1,14 @@
 <?php
 
-/*
- * This file is part of SwiftMailer.
- * (c) 2004-2009 Chris Corbyn
- *
- * For the full copyright and license information, please view the LICENSE
- * file that was distributed with this source code.
- */
-
 /**
  * Uses several Transports with mapping rules.
  *
- * @package    Swift
- * @subpackage Transport
- * @author     Chris Corbyn
  */
 class Swift_Transport_MappedTransport implements Swift_Transport
 {
+    /** The event dispatching layer */
+    protected $_eventDispatcher;
+     
     /**
      * The Transports which are used in mapping.
      *
@@ -41,8 +33,9 @@ class Swift_Transport_MappedTransport implements Swift_Transport
     /**
      * Creates a new MappedTransport.
      */
-    public function __construct()
+    public function __construct(Swift_Events_MappedTransportEventDispatcherInterface $dispatcher)
     {
+       $this->_eventDispatcher = $dispatcher;
     }
 
     /**
@@ -208,9 +201,15 @@ class Swift_Transport_MappedTransport implements Swift_Transport
      */
     public function registerPlugin(Swift_Events_EventListener $plugin)
     {
-        foreach ($this->_transports as $transport) {
-            $transport->registerPlugin($plugin);
-        }
+     
+        // mappedtransport for this instance, other listeners for the mapped transport objects
+        //if ($plugin instanceof Swift_Events_MappedTransportListener) {
+             $this->_eventDispatcher->bindEventListener($plugin);
+        //} else {
+          foreach ($this->_transports as $transport) {
+              $transport->registerPlugin($plugin);
+          }
+        //}
     }
 
     // -- Protected methods
@@ -222,7 +221,10 @@ class Swift_Transport_MappedTransport implements Swift_Transport
      */
     protected function _getMappingTransport(Swift_Mime_Message $message)
     {
+       $evt = $this->_eventDispatcher->createMappedTransportSelectedEvent($this, $message);
+
        foreach ($this->getTransports() as $transportName => $transport) {
+         $evt->setTransportDetails($transportName, $transport);
          $mapping = $this->getMappings($transportName);
          if ($mapping != null) {
            foreach ($mapping as $mappingItem)  {
@@ -239,23 +241,48 @@ class Swift_Transport_MappedTransport implements Swift_Transport
                      $headers = $messageValue->getAll($mappingValueKey);
                      foreach ($headers as $header) {
                        if (preg_match($this->ensureRegEx($mappingValue[$mappingValueKey]), $header->getValue())) {
+                          $evt->setMatch(array(
+                                               'Match' => 'Header/' .$mappingValueKey,
+                                               'RegEx' => $this->ensureRegEx($mappingValue[$mappingValueKey]),
+                                               'Value' => $header->getValue()
+                          ));
+                          $this->_eventDispatcher->dispatchEvent($evt, 'mappedTransportSelected');
                           return $transport;
                        }
                      }
                   } else if (is_array($messageValue)) {  //  email address (email=>name), in which case match the email
                        foreach ($messageValue as $messageItemKey => $messageItemValue) {
                          if (preg_match($this->ensureRegEx($mappingValue), $messageItemKey)) {
+                            $evt->setMatch(array(
+                              'Match' => 'Email',
+                              'RegEx' => $this->ensureRegEx($mappingValue),
+                              'Value' => $messageItemKey
+                            ));
+                            $this->_eventDispatcher->dispatchEvent($evt, 'mappedTransportSelected');
                             return $transport;
                          }
                        }
                   } else if (preg_match($this->ensureRegEx($mappingValue), $messageValue)) {
+                       $evt->setMatch(array(
+                              'Match' => 'Subject',
+                              'RegEx' => $this->ensureRegEx($mappingValue),
+                              'Value' => $messageValue
+                       ));
+                       $this->_eventDispatcher->dispatchEvent($evt, 'mappedTransportSelected');
                        return $transport;
                   }   
               }
            }
          }
        }
-       
+
+       $evt->setMatch(array(
+            'Match' => 'Default',
+            'RegEx' => '.*',
+            'Value' => 'N/A'
+       ));       
+       $evt->setTransportDetails('Default', $this->getDefaultTransport());
+       $this->_eventDispatcher->dispatchEvent($evt, 'mappedTransportSelected');
        return $this->getDefaultTransport(); 
     }
     
